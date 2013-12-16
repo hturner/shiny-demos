@@ -1,7 +1,8 @@
-library(RColorBrewer)
-library(scales)
-library(fields)
-library(ISwR)
+library(RColorBrewer) #brewer.pal
+library(scales) #dichromat_pal
+library(fields) #image.plot
+library(ISwR) #thuesen
+library(MASS) #cats
 ## server script for linear regression app
 shinyServer(function(input, output, session){
     output$distPlot <- renderPlot({
