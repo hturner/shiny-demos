@@ -20,5 +20,5 @@ shinyUI(pageWithSidebar(
                               "Number of density sections",
                               value = 0, min = 1, max = 8)
                  ),
-    mainPanel(plotOutput("distPlot"))
+    mainPanel(plotOutput("distPlot", width = "60%", height = "500px"))
     ))
