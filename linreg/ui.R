@@ -14,19 +14,46 @@ shinyUI(pageWithSidebar(
                                    "faithful",
                                    "thuesen")),
                  br(), br(),
-                 ## use uiOutput to get numericInputs dependent on data
-                 uiOutput("intercept"),
-                 uiOutput("slope"),
-                 br(),
-                 checkboxInput("fitted", "Show fitted line", FALSE),
-                 br(),
-                 checkboxInput("residuals", "Show residuals", FALSE),
-                 br(),
-                 checkboxInput("squares", "Show squared residuals", FALSE),
-                 br(),
-                 radioButtons("loss",
-                              "Loss function",
-                              list("absolute", "quadratic")),
-                 br()),
-    mainPanel(plotOutput("distPlot"))
+                 ## tab 1 inputs
+                 conditionalPanel(
+                    condition = "input.tab == 'tab1'",
+                     ## use uiOutput to get numericInputs dependent on data
+                     uiOutput("intercept"),
+                     uiOutput("slope"),
+                     br(),
+                     checkboxInput("fitted", "Show fitted line", FALSE),
+                     br(),
+                     checkboxInput("residuals", "Show residuals", FALSE),
+                     br(),
+                     checkboxInput("squares", "Show squared residuals", FALSE),
+                     br(),
+                     radioButtons("loss",
+                                  "Loss function",
+                                  list("absolute", "quadratic")),
+                     br()),
+                 ## tab 2 inputs
+                 conditionalPanel(
+                     condition = "input.tab == 'tab2'",
+                     checkboxInput("density2D", "Show fitted density in 2D",
+                                   FALSE),
+                     selectInput("limits",
+                                 "Limits of density interval",
+                                 list("99%", "95%", "90%")),
+                     br(),
+                     checkboxInput("density3D", "Show fitted density in 3D",
+                                   FALSE),
+                     numericInput("quantiles",
+                                  "Number of density sections",
+                                  value = 0, min = 1, max = 8))
+                 ),
+    mainPanel(
+        tabsetPanel(
+            tabPanel("Fitting Process", plotOutput("fitPlot"),
+                     value = "tab1"),
+            tabPanel("Fitted Distribution",
+                     div(align = "center",
+                         plotOutput("distPlot", width = "50%")),
+                     value = "tab2"),
+            id = "tab")
+        )
     ))

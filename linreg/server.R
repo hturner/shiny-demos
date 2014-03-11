@@ -1,159 +1,201 @@
+## load packages
 library(RColorBrewer) #brewer.pal
-library(scales) #dichromat_pal
+library(R.utils) # sourceDirectory
 library(fields) #image.plot
 library(ISwR) #thuesen
 library(MASS) #cats
+
+## source app-specific functions
+sourceDirectory('tools', recursive = TRUE)
+
+## plot colours
+abCol <- "black"
+inputCol <- brewer.pal(8, "Dark2")[2]
+resCol <- brewer.pal(4, "RdYlBu")[c(1,4)]
+
 ## server script for linear regression app
 shinyServer(function(input, output, session){
-    output$distPlot <- renderPlot({
-        ## colours
-        abCol <- "black"
-        inputCol <- brewer.pal(8, "Dark2")[2]
-        resCol <- brewer.pal(4, "RdYlBu")[c(1,4)]
-        ## define loss function
-        if (input$loss == "absolute"){
-            lossFn <- function(par) {
-                sum(abs(y - par[1] - par[2] * x))
-            }
-        } else {
-            lossFn <- function(par) {
-                sum((y - par[1] - par[2] * x)^2)
-            }
-        }
-        ## get y
-        y <- switch(input$data,
-                    "anscombe 1" = anscombe[["y1"]],
-                    "anscombe 2" = anscombe[["y2"]],
-                    "anscombe 3" = anscombe[["y3"]],
-                    "anscombe 4" = anscombe[["y4"]],
-                    "cars" = cars[["dist"]],
-                    "cats" = cats[["Hwt"]],
-                    "faithful" = faithful[["eruptions"]],
-                    "thuesen" = thuesen[["short.velocity"]])
-        ylab <- switch(input$data,
-                       "cars" = "dist",
-                       "cats" = "Hwt",
-                       "faithful" = "eruptions",
-                       "thuesen" = "short.velocity",
-                       "y")
-        ## get x
-        x <- switch(input$data,
-                    "anscombe 1" = anscombe[["x1"]],
-                    "anscombe 2" = anscombe[["x2"]],
-                    "anscombe 3" = anscombe[["x3"]],
-                    "anscombe 4" = anscombe[["x4"]],
-                    "cars" = cars[["speed"]],
-                    "cats" = cats[["Bwt"]],
-                    "faithful" = faithful[["waiting"]],
-                    "thuesen" = thuesen[["blood.glucose"]])
-        xlab <- switch(input$data,
-                       "cars" = "speed",
-                       "cats" = "Bwt",
-                       "thuesen" = "blood.glucose",
-                       "faithful" = "waiting",
-                       "x")
-        na <- is.na(y) | is.na(x)
-        y <- y[!na]
-        x <- x[!na]
-        par <- optim(c(0.1, 0.1), lossFn, "BFGS")$par
+    ## get data
+    dat <- reactive({na.omit(
+        switch(input$data,
+               "anscombe 1" = anscombe[c("y1", "x1")],
+               "anscombe 2" = anscombe[c("y2", "x2")],
+               "anscombe 3" = anscombe[c("y3", "x3")],
+               "anscombe 4" = anscombe[c("y4", "x4")],
+               "cars" = cars[c("dist", "speed")],
+               "cats" = cats[c("Hwt", "Bwt")],
+               "faithful" = faithful[c("eruptions", "waiting")],
+               "thuesen" = thuesen[c("short.velocity", "blood.glucose")]))})
+    ## get regression parameters
+    lossFn <- reactive({
+        if (input$loss == "absolute") absoluteLoss
+        else quadraticLoss
+    })
+    fit <- reactive({
+        dat <- dat()
+        y <- names(dat)[1]
+        x <- names(dat)[2]
+        par <- optim(c(0.1, 0.1), lossFn(), method = "BFGS",
+                     y = dat[[y]], x = dat[[x]])$par
         a <- round(par[[1]], 3)
         b <- round(par[[2]], 3)
-        ## range +/- 20%
-        aStep <- abs(a) * 0.02 + 5e-3
-        aRange <- c(a - 10*aStep, a + 10*aStep)
-        bStep <- abs(b) * 0.02 + 5e-3
-        bRange <- c(b - 10*bStep, b + 10*bStep)
-        ## start intercept and slope at fitted value
-        output$intercept <- renderUI({
-            numericInput("a",
-                         "Intercept (a)",
-                         value = a,
-                         min = aRange[1],
-                         max = aRange[2],
-                         step = aStep)
-        })
-        output$slope <- renderUI({
-            numericInput("b",
-                         "Slope (b)",
-                         value = b,
-                         min = bRange[1],
-                         max = bRange[2],
-                         step = bStep)
-        })
+        n <- nrow(dat)
+        sigma <- sum((dat[[y]] - (a + b * dat[[x]]))^2)/(n - 1)
+        eqn <- bquote(E(.(y)) == .(a) + .(b) %.% .(x))
+        list(a = a, b = b, sigma = sigma, eqn = eqn)
+    })
+    ## define range of parameters reactively
+    step <- reactive({
+        fit <- fit()
+        ## parameter range: +/- 20%
+        aStep <- abs(fit$a) * 0.02 + 5e-3
+        aRange <- c(fit$a - 10*aStep, fit$a + 10*aStep)
+        bStep <- abs(fit$b) * 0.02 + 5e-3
+        bRange <- c(fit$b - 10*bStep, fit$b + 10*bStep)
+        list(aMin = aRange[1], aMax = aRange[2], aStep = aStep,
+             bMin = bRange[1], bMax = bRange[2], bStep = bStep)
+    })
+    ## start intercept and slope at fitted value
+    output$intercept <- renderUI({
+        numericInput("a",
+                     "Intercept (a)",
+                     value = fit()$a,
+                     min = step()$aMin,
+                     max = step()$aMax,
+                     step = step()$aStep)
+    })
+    output$slope <- renderUI({
+        numericInput("b",
+                     "Slope (b)",
+                     value = fit()$b,
+                     min = step()$bMin,
+                     max = step()$bMax,
+                     step = step()$bStep)
+    })
+
+    ### Fitting Process Tab ###
+    output$fitPlot <- renderPlot({
+        dat <- dat()
+        lossFn <- lossFn()
+        fit <- fit()
+        step <- step()
+        y <- names(dat)[1]
+        x <- names(dat)[2]
         ## plot data and interactive line
         par(mfrow = c(1, 2)) # layout won't work with points etc
-        plot(y ~ x, ylab = ylab, xlab = xlab)
+        plot(dat[[x]], dat[[y]], ylab = y, xlab = x)
         abline(input$a, input$b, col = inputCol)
-        mtext(bquote(E(.(ylab)) == .(input$a) + .(input$b) %.% .(xlab)),
+        mtext(bquote(E(.(y)) == .(input$a) + .(input$b) %.% .(x)),
               side = 3, line = 3, col = inputCol)
         ## plus regression line if requested
         if (input$fitted) {
-            abline(a, b, col = abCol)
-            mtext(bquote(E(.(ylab)) == .(a) + .(b) %.% .(xlab)),
-                  side = 3, line = 1, col = abCol)
+            abline(fit$a, fit$b, col = abCol)
+            mtext(fit$eqn, side = 3, line = 1, col = abCol)
         }
         ## plus residuals if requested
         if (input$residuals) {
-            yhat <- input$a + input$b * x
-            res <- y - yhat
-            segments(x0 = x, y0 = y, x1 = x, y1 = yhat,
+            yhat <- input$a + input$b * dat[[x]]
+            res <- dat[[y]] - yhat
+            segments(x0 = dat[[x]], y0 = dat[[y]], x1 = dat[[x]], y1 = yhat,
                      col = resCol[sign(res)*0.5 + 1.5])
         }
         ## plus squared residuals if requested
         if (input$squares) {
-            yhat <- input$a + input$b * x
-            res <- y - yhat
-            segments(x0 = c(x, x, x - res, x - res),
-                     y0 = c(y, yhat, yhat, y),
-                     x1 = c(x, x - res, x - res, x),
-                     y1 = c(yhat, yhat, y, y),
+            yhat <- input$a + input$b * dat[[x]]
+            res <- dat[[y]] - yhat
+            segments(x0 = c(dat[[x]], dat[[x]], dat[[x]] - res, dat[[x]] - res),
+                     y0 = c(dat[[y]], yhat, yhat, dat[[y]]),
+                     x1 = c(dat[[x]], dat[[x]] - res, dat[[x]] - res, dat[[x]]),
+                     y1 = c(yhat, yhat, dat[[y]], dat[[y]]),
                      col = resCol[sign(res)*0.5 + 1.5])
         }
-        ## use log color scale to "zoom" into minimum
-        ## (means that limits less critical)
-        plotLoss <- function(type, loss, a, b){
-            gr <- expand.grid(a = a, b = b)
-            l <- apply(gr, 1, loss)
-            l <- matrix(l, length(a), length(b))
-            maxLog2 <- function(x, n = 0){
-                out <- suppressWarnings(log2(x))
-                if (is.finite(out)){
-                    n <- n + 1
-                    Recall(out, n)
-                } else n
-            }
-            nLog2 <- function(x, n = 1){
-                out <- suppressWarnings(log2(x))
-                n <- n - 1
-                if (n > 0) Recall(out, n)
-                else out
-            }
-            ticks <- signif(round(quantile(l, c(0.2, 0.4, 0.6, 0.8))), 2)
-            n <- pmin(maxLog2(min(l)), 3)
-            image.plot(a, b, nLog2(l, n),
-                       col = rev(dichromat_pal("BrowntoBlue.12")(12)),
-                       axis.args = list(at = nLog2(ticks, n), labels=ticks),
-                       legend.width = 1, smallplot= c(.80,.85,0.25,0.8))
-        }
         plotLoss(input$loss, lossFn,
-                 seq(aRange[1] - aStep, aRange[2] + aStep, length = 100),
-                 seq(bRange[1] - bStep, bRange[2] + bStep, length = 100))
+                 seq(step$aMin - step$aStep, step$aMax + step$aStep,
+                     length = 100),
+                 seq(step$bMin - step$bStep, step$bMax + step$bStep,
+                     length = 100), dat[[y]], dat[[x]])
         points(input$a, input$b, col = inputCol, pch = 16, cex = 1.5)
         if (input$loss == "absolute") {
             lossEqn <-  eval(parse(text = paste0("quote(sum(group(\"|\", ",
-                                       ylab, "[i] - a - b %.% ", xlab,
+                                       y, "[i] - a - b %.% ", x,
                                        "[i], \"|\"), i, NULL))")))
         } else {
-            lossEqn <- eval(parse(text = paste0("quote(sum((", ylab,
-                                      "[i] - a - b %.% ", xlab,
+            lossEqn <- eval(parse(text = paste0("quote(sum((", y,
+                                      "[i] - a - b %.% ", x,
                                       "[i])^2, i, NULL))")))
         }
-        mtext(bquote(paste(.(lossEqn), " = ", .(lossFn(c(input$a, input$b))))),
+        mtext(bquote(paste(.(lossEqn), " = ",
+                           .(lossFn(c(input$a, input$b), dat[[y]], dat[[x]])))),
               side = 3, line = 2, col = inputCol)
         if (input$fitted) {
-            points(a, b, col = abCol, pch = 16, cex = 1.5)
-            mtext(bquote(paste(.(lossEqn), " = ", .(lossFn(c(a, b))))),
+            points(fit$a, fit$b, col = abCol, pch = 16, cex = 1.5)
+            mtext(bquote(paste(.(lossEqn), " = ",
+                               .(lossFn(c(fit$a, fit$b), dat[[y]], dat[[x]])))),
                   side = 3, line = 0, col = abCol)
         }
+    })
+
+    ### Fitted Distribution tab ###
+     output$distPlot <- renderPlot({
+        dat <- dat()
+        fit <- fit()
+        y <- names(dat)[1]
+        x <- names(dat)[2]
+        ## if adding density generate fitted data
+        if (input$density2D | input$density3D) {
+            ## need at least 3 points to enable clipping in 3D perspective
+            xlim <- getLim(dat[[x]])
+            x2D <- seq(xlim[1], xlim[2], length.out = 3)
+            y2D <- fit$a + fit$b * x2D
+        }
+        if (!input$density3D) {
+            ## set up 2D plot
+            par(mar = c(5, 4, 4, 2) + 0.1)
+            plot(dat[[x]], dat[[y]], ylab = y, xlab = x, type = "n")
+            ## add 2D density if requested
+            if (input$density2D) {
+                perc <- as.numeric(gsub("%", "", input$limits))
+                denStrip(x2D, y2D, fit$sigma, perc = perc, col = "red")
+            }
+            ## add points and fitted line
+            points(dat[[x]], dat[[y]])
+            abline(fit$a, fit$b, col = abCol)
+        } else {
+            xlim <- getLim(dat[[x]])
+            ylim <- getLim(dat[[y]])
+            ## as constant variance, all densities the same
+            ## (for increasing var would need to compute for y3D at max quantile)
+            zmax <- dnorm(y2D[1], y2D[1], fit$sigma)
+            zlim <- c(0, max(zmax, 0.5)) # don't expand z range
+            ## set up 3D plot
+            par(mar = c(0, 2, 0, 0), xpd = TRUE)
+            P <- persp(xlim, ylim, matrix(0, 2, 2), zlim = zlim,
+                       theta = -30, box = FALSE)
+            perspAxis(1:2, P, xlim, ylim, zlim)
+            perspLab(P, xlim, ylim, zlim, xlab = x, ylab = y)
+            ## add 2D density if requested
+            if (input$density2D) {
+                perc <- as.numeric(gsub("%", "", input$limits))
+                denStrip(x2D, y2D, fit$sigma, perc = perc, col = "red",
+                         persp = P, ylim = ylim)
+            }
+            ## add points and fitted line
+            points(trans3d(dat[[x]], dat[[y]], 0, P))
+            lines(trans3d(x2D, y2D, 0, P))
+            ## add 3D densities if requested
+            nq <- input$quantiles
+            if (input$density3D && nq > 0) {
+                perspAxis(3, P, xlim, ylim, zlim)
+                perspLab(P, xlim, ylim, zlim, zlab = "Fitted Density")
+                q <- seq(1/(nq + 1), nq/(nq + 1), length.out = nq)
+                x3D <- xlim[1] + q * diff(range(xlim))
+                y3D <- fit$a + fit$b * x3D
+                for (i in seq_len(nq)) {
+                    addDen(x3D[i], y3D[i], fit$sigma, ylim, P)
+                }
+            }
+        }
+        ## add title
+        mtext(fit$eqn, side = 3, line = 1, col = abCol)
     })
 })
