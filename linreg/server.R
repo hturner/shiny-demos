@@ -1,5 +1,6 @@
 ## load packages
 library(RColorBrewer) #brewer.pal
+library(scales) # dichromat_pal
 library(R.utils) # sourceDirectory
 library(fields) #image.plot
 library(ISwR) #thuesen
@@ -40,7 +41,7 @@ shinyServer(function(input, output, session){
         a <- round(par[[1]], 3)
         b <- round(par[[2]], 3)
         n <- nrow(dat)
-        sigma <- sum((dat[[y]] - (a + b * dat[[x]]))^2)/(n - 1)
+        sigma <- sqrt(sum((dat[[y]] - (a + b * dat[[x]]))^2)/(n - 2))
         eqn <- bquote(E(.(y)) == .(a) + .(b) %.% .(x))
         list(a = a, b = b, sigma = sigma, eqn = eqn)
     })
@@ -160,6 +161,8 @@ shinyServer(function(input, output, session){
             ## add points and fitted line
             points(dat[[x]], dat[[y]])
             abline(fit$a, fit$b, col = abCol)
+            ## add title
+            mtext(fit$eqn, side = 3, line = 1, col = abCol)
         } else {
             xlim <- getLim(dat[[x]])
             ylim <- getLim(dat[[y]])
@@ -177,10 +180,18 @@ shinyServer(function(input, output, session){
             if (input$density2D) {
                 perc <- as.numeric(gsub("%", "", input$limits))
                 denStrip(x2D, y2D, fit$sigma, perc = perc, col = "red",
-                         persp = P, ylim = ylim)
+                         persp = P, xlim = xlim, ylim = ylim)
             }
             ## add points and fitted line
             points(trans3d(dat[[x]], dat[[y]], 0, P))
+            if (any(too.high <- y2D > ylim[2])) {
+                y2D[too.high] <- ylim[2]
+                x2D[too.high] <- (ylim[2] - fit$a)/fit$b
+            }
+            if (any(too.low <- y2D < ylim[1])) {
+                y2D[too.low] <- ylim[1]
+                x2D[too.low] <- (ylim[1] - fit$a)/fit$b
+            }
             lines(trans3d(x2D, y2D, 0, P))
             ## add 3D densities if requested
             nq <- input$quantiles
@@ -194,8 +205,8 @@ shinyServer(function(input, output, session){
                     addDen(x3D[i], y3D[i], fit$sigma, ylim, P)
                 }
             }
+            text(trans3d(xlim[1] + diff(xlim)/2, ylim[1] + diff(ylim)/2,
+                         zlim[2], P), labels = fit$eqn)
         }
-        ## add title
-        mtext(fit$eqn, side = 3, line = 1, col = abCol)
     })
 })

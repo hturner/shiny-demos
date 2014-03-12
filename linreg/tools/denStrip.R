@@ -7,7 +7,8 @@ denStrip <- function(x, # x values (min 3 to enable clipping)
                      npoly = 50, #  number of polygons
                      perc = 95, # middle percentage of density shown, in [0, 100]
                      persp = NULL, # the output from persp to transform to 3D
-                     ylim = NULL, # limits to clip to in 3D case
+                     xlim = NULL, # limits to clip to in 3D case
+                     ylim = NULL, # ditto for y
                      col = "red"
                      ) {
     require(scales) # for alpha function
@@ -30,18 +31,20 @@ denStrip <- function(x, # x values (min 3 to enable clipping)
         if (!is.null(ylim)) {
             too.low <- which(coord$y < ylim[1])
             if (length(too.low)) {
-                ## shift next point that is okay to corner
-                id <- max(too.low) + 1
+                ## shift last or next point to corner
+                id <- max(too.low) + 1 * (length(too.low) == 1)
                 coord$x[id] <- with(coord, x[id - 1] + (ylim[1] - y[id - 1]) *
                                     (x[id] - x[id - 1])/(y[id] - y[id - 1]))
+                if (coord$x[id] > xlim[2]) coord$x[id] <- xlim[2]
                 coord$y[c(too.low, id)] <- ylim[1]
             }
             too.high <- which(coord$y > ylim[2])
             if (length(too.high)) {
-                ## shift next point that is okay to corner
-                id <- max(too.high) + 1
+                ## shift last or next point to corner
+                id <- max(too.high) + 1 * (length(too.high) == 1)
                 coord$x[id] <- with(coord, x[id] + (ylim[2] - y[id]) *
                                     (x[id - 1] - x[id])/(y[id - 1] - y[id]))
+                if (coord$x[id] < xlim[1]) coord$x[id] <- xlim[1]
                 coord$y[c(too.high, id)] <- ylim[2]
             }
         }

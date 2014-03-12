@@ -44,7 +44,7 @@ shinyUI(pageWithSidebar(
                                    FALSE),
                      numericInput("quantiles",
                                   "Number of density sections",
-                                  value = 0, min = 1, max = 8))
+                                  value = 0, min = 0, max = 8))
                  ),
     mainPanel(
         tabsetPanel(
