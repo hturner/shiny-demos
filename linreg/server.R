@@ -7,7 +7,7 @@ library(ISwR) #thuesen
 library(MASS) #cats
 
 ## source app-specific functions
-sourceDirectory('tools', recursive = TRUE)
+sourceDirectory('../tools', recursive = TRUE, modeifiedOnly = FALSE)
 
 ## plot colours
 abCol <- "black"

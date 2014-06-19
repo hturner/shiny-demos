@@ -2,12 +2,11 @@
 library(RColorBrewer) #brewer.pal
 library(scales) # dichromat_pal
 library(R.utils) # sourceDirectory
-library(fields) #image.plot
-library(ISwR) #thuesen
-library(MASS) #cats
+library(fields) # image.plot
+library(plot3D) # persp3D
 
 ## source app-specific functions
-sourceDirectory('tools', recursive = TRUE)
+sourceDirectory('../tools', recursive = TRUE, modifiedOnly = FALSE)
 
 ## plot colours
 abCol <- "black"
@@ -138,6 +137,91 @@ shinyServer(function(input, output, session){
             #mtext(bquote(paste(.(lossEqn), " = ",
             #                   .(lossFn(c(fit$a, fit$b), dat[[y]], dat[[x]])))),
             #      side = 3, line = 0, col = abCol)
+        }
+    })
+
+
+    ### Fitted Distribution tab ###
+     output$distPlot <- renderPlot({
+        dat <- dat()
+        fit <- fit()
+        y <- names(dat)[1]
+        x <- names(dat)[2]
+        ## if adding density generate fitted data
+        if (input$density2D | input$density3D) {
+            ## need several points for non-gaussian - curves vs lines
+            xlim <- getLim(dat[[x]]) # par()$usr no good for 3D
+            ylim <- getLim(dat[[y]])
+            x2D <- seq(xlim[1], xlim[2], length.out = 30)
+            y2D <- exp(fit$a + fit$b * x2D)
+        }
+        if (!input$density3D) {
+            ## set up 2D plot
+            par(mar = c(5, 4, 4, 2) + 0.1)
+            plot(dat[[x]], dat[[y]], ylab = y, xlab = x, type = "n")
+            ## add 2D density if requested
+            if (input$density2D) {
+                perc <- as.numeric(gsub("%", "", input$limits))
+                densStripPois(fit = fit, perc = perc, xlim = xlim, ylim = ylim)
+                box()
+            }
+            ## add points and fitted line
+            points(dat[[x]], dat[[y]])
+            f <- function(x) exp(fit$a + fit$b*x)
+            lim <- par()$usr
+            curve(f, lim[1], lim[2], col = abCol, add = TRUE)
+            ## add title
+            mtext(fit$eqn, side = 3, line = 1, col = abCol)
+        } else {
+            ## find maximum density
+            miny <- min(y2D)
+            if (miny < ylim[1]) miny <- ylim[1]
+            zmax <- dpois(floor(miny), miny)
+            zlim <- c(0, max(zmax, 0.5)) # don't expand z range
+            ## set up 3D plot
+            par(mar = c(0, 2, 0, 0), xpd = TRUE)
+            P <- persp3D(xlim, ylim, matrix(0, 2, 2), zlim = zlim,
+                         theta = -30, phi = 15, box = FALSE, colkey = FALSE)
+            perspAxis(1:2, P, xlim, ylim, zlim)
+            perspLab(P, xlim, ylim, zlim, xlab = x, ylab = y)
+            base <- function(){
+                lines(trans3d(xlim[1], ylim, zlim[1], P))
+                lines(trans3d(xlim[2], ylim, zlim[1], P))
+                lines(trans3d(xlim, ylim[1], zlim[1], P))
+                lines(trans3d(xlim, ylim[2], zlim[1], P))
+            }
+            ## add 2D density if requested
+            if (input$density2D) {
+                perc <- as.numeric(gsub("%", "", input$limits))
+                densStripPois(fit = fit, perc = perc, persp = P,
+                              xlim = xlim, ylim = ylim)
+            }
+            base()
+            ## add points and fitted line
+            points(trans3d(dat[[x]], dat[[y]], 0, P))
+            if (any(too.high <- y2D > ylim[2])) {
+                y2D[too.high] <- ylim[2]
+                x2D[too.high] <- (ylim[2] - fit$a)/fit$b
+            }
+            if (any(too.low <- y2D < ylim[1])) {
+                y2D[too.low] <- ylim[1]
+                x2D[too.low] <- (ylim[1] - fit$a)/fit$b
+            }
+            lines(trans3d(x2D, y2D, 0, P))
+            ## add 3D densities if requested
+            nq <- input$quantiles
+            if (input$density3D && nq > 0) {
+                perspAxis(3, P, xlim, ylim, zlim)
+                perspLab(P, xlim, ylim, zlim, zlab = "Fitted Density")
+                q <- seq(1/(nq + 1), nq/(nq + 1), length.out = nq)
+                x3D <- xlim[1] + q * diff(range(xlim))
+                y3D <- fit$a + fit$b * x3D
+                for (i in seq_len(nq)) {
+                    addDen(x3D[i], y3D[i], fit$sigma, ylim, P)
+                }
+            }
+            text(trans3d(xlim[1] + diff(xlim)/2, ylim[1] + diff(ylim)/2,
+                         zlim[2], P), labels = fit$eqn)
         }
     })
 })
