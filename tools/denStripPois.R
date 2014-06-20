@@ -12,8 +12,9 @@ densStripPois <- function(fit,
     x2D <- seq(xlim[1], xlim[2], length.out = nx)
     ## use discrete steps for y so that density non-zero
     maxy <- floor(ylim[2])
+    miny <- ceiling(ylim[1])
     step <- max(maxy %/% ny, 1)
-    y2D <- seq(0, maxy, by = step)
+    y2D <- seq(miny, maxy, by = step)
     grid <- expand.grid(x2D, y2D)
 
     ### for each grid point, predict density

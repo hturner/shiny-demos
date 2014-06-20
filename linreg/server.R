@@ -7,12 +7,13 @@ library(ISwR) #thuesen
 library(MASS) #cats
 
 ## source app-specific functions
-sourceDirectory('../tools', recursive = TRUE, modeifiedOnly = FALSE)
+sourceDirectory('../tools', recursive = TRUE, modifiedOnly = FALSE)
 
 ## plot colours
 abCol <- "black"
 inputCol <- brewer.pal(8, "Dark2")[2]
 resCol <- brewer.pal(4, "RdYlBu")[c(1,4)]
+densCol <- dichromat_pal("BluetoOrangeRed.14")(14)[c(1, 12, 14)]
 
 ## server script for linear regression app
 shinyServer(function(input, output, session){
@@ -156,7 +157,7 @@ shinyServer(function(input, output, session){
             ## add 2D density if requested
             if (input$density2D) {
                 perc <- as.numeric(gsub("%", "", input$limits))
-                denStrip(x2D, y2D, fit$sigma, perc = perc, col = "red")
+                denStrip(x2D, y2D, fit$sigma, perc = perc, col = densCol[1])
             }
             ## add points and fitted line
             points(dat[[x]], dat[[y]])
@@ -179,7 +180,7 @@ shinyServer(function(input, output, session){
             ## add 2D density if requested
             if (input$density2D) {
                 perc <- as.numeric(gsub("%", "", input$limits))
-                denStrip(x2D, y2D, fit$sigma, perc = perc, col = "red",
+                denStrip(x2D, y2D, fit$sigma, perc = perc, col = densCol[1],
                          persp = P, xlim = xlim, ylim = ylim)
             }
             ## add points and fitted line
@@ -201,8 +202,10 @@ shinyServer(function(input, output, session){
                 q <- seq(1/(nq + 1), nq/(nq + 1), length.out = nq)
                 x3D <- xlim[1] + q * diff(range(xlim))
                 y3D <- fit$a + fit$b * x3D
+                perc <- as.numeric(gsub("%", "", input$limits))
                 for (i in seq_len(nq)) {
-                    addDen(x3D[i], y3D[i], fit$sigma, ylim, P)
+                    addDen(x3D[i], y3D[i], fit$sigma, ylim, P, perc = perc,
+                           incol = densCol[2], outcol = densCol[3])
                 }
             }
             text(trans3d(xlim[1] + diff(xlim)/2, ylim[1] + diff(ylim)/2,

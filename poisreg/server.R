@@ -12,6 +12,7 @@ sourceDirectory('../tools', recursive = TRUE, modifiedOnly = FALSE)
 abCol <- "black"
 inputCol <- brewer.pal(8, "Dark2")[2]
 resCol <- brewer.pal(4, "RdYlBu")[c(1,4)]
+densCol <- dichromat_pal("BluetoOrangeRed.14")(14)[c(1, 12, 14)]
 
 ## server script for linear regression app
 shinyServer(function(input, output, session){
@@ -162,7 +163,8 @@ shinyServer(function(input, output, session){
             ## add 2D density if requested
             if (input$density2D) {
                 perc <- as.numeric(gsub("%", "", input$limits))
-                densStripPois(fit = fit, perc = perc, xlim = xlim, ylim = ylim)
+                densStripPois(fit = fit, perc = perc, xlim = xlim, ylim = ylim,
+                              col = densCol[1])
                 box()
             }
             ## add points and fitted line
@@ -177,26 +179,20 @@ shinyServer(function(input, output, session){
             miny <- min(y2D)
             if (miny < ylim[1]) miny <- ylim[1]
             zmax <- dpois(floor(miny), miny)
-            zlim <- c(0, max(zmax, 0.5)) # don't expand z range
+            zlim <- c(0, zmax) # don't expand z range
             ## set up 3D plot
-            par(mar = c(0, 2, 0, 0), xpd = TRUE)
+            par(mar = c(0, 2, 0, 0), xpd = TRUE, plt = c(0, 1, 0, 1))
             P <- persp3D(xlim, ylim, matrix(0, 2, 2), zlim = zlim,
                          theta = -30, phi = 15, box = FALSE, colkey = FALSE)
             perspAxis(1:2, P, xlim, ylim, zlim)
             perspLab(P, xlim, ylim, zlim, xlab = x, ylab = y)
-            base <- function(){
-                lines(trans3d(xlim[1], ylim, zlim[1], P))
-                lines(trans3d(xlim[2], ylim, zlim[1], P))
-                lines(trans3d(xlim, ylim[1], zlim[1], P))
-                lines(trans3d(xlim, ylim[2], zlim[1], P))
-            }
             ## add 2D density if requested
             if (input$density2D) {
                 perc <- as.numeric(gsub("%", "", input$limits))
                 densStripPois(fit = fit, perc = perc, persp = P,
-                              xlim = xlim, ylim = ylim)
+                              xlim = xlim, ylim = ylim, col = densCol[1])
             }
-            base()
+            base3D(xlim, ylim, zlim, P)
             ## add points and fitted line
             points(trans3d(dat[[x]], dat[[y]], 0, P))
             if (any(too.high <- y2D > ylim[2])) {
@@ -215,9 +211,11 @@ shinyServer(function(input, output, session){
                 perspLab(P, xlim, ylim, zlim, zlab = "Fitted Density")
                 q <- seq(1/(nq + 1), nq/(nq + 1), length.out = nq)
                 x3D <- xlim[1] + q * diff(range(xlim))
-                y3D <- fit$a + fit$b * x3D
+                y3D <- exp(fit$a + fit$b * x3D)
+                perc <- as.numeric(gsub("%", "", input$limits))
                 for (i in seq_len(nq)) {
-                    addDen(x3D[i], y3D[i], fit$sigma, ylim, P)
+                    addDenPois(x3D[i], y3D[i], ylim, P, perc = perc,
+                              incol = densCol[2], outcol = densCol[3])
                 }
             }
             text(trans3d(xlim[1] + diff(xlim)/2, ylim[1] + diff(ylim)/2,
