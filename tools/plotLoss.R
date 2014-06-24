@@ -22,5 +22,5 @@ plotLoss <- function(type, loss, a, b, y, x){
     image.plot(a, b, nLog2(l, n),
                col = rev(dichromat_pal("BrowntoBlue.12")(12)),
                axis.args = list(at = nLog2(ticks, n), labels=ticks),
-               legend.width = 1, smallplot= c(.80,.85,0.25,0.8))
+               smallplot= c(.85,.9,0.2,0.8))
 }

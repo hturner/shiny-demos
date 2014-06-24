@@ -76,7 +76,7 @@ shinyServer(function(input, output, session){
     })
 
     ### Fitting Process Tab ###
-    output$fitPlot <- renderPlot({
+    output$fitPlot <- renderPlot(height = 400, {
         dat <- dat()
         lossFn <- lossFn()
         fit <- fit()

@@ -1,5 +1,4 @@
 require(MASS)
-require(manipulate)
 data(anscombe)
 
 shinyServer(function(input, output, session){
@@ -9,22 +8,22 @@ shinyServer(function(input, output, session){
   #  1) It is "reactive" and therefore should be automatically
   #     re-executed when inputs change
   #  2) Its output type is a plot
-  
-  
-  
+
+
+
   output$LOOplot <- renderPlot({
     whichpair <- substr(input$data,10,10)
 
 eval(parse(text = paste("sortit <- order(anscombe$x", whichpair, ")", sep = "")))
 eval(parse(text = paste("data.df <- data.frame(x=anscombe$x", whichpair, "[sortit], y=anscombe$y", whichpair, "[sortit])", sep = "")))
-  
+
   ylims <- c(min(data.df$y)*0.8, max(data.df$y)*1.2)
   xlims <- c(min(data.df$x)*0.8, max(data.df$x)*1.2)
   ytext1 <- ylims[1] + 0.8 * (ylims[2]-ylims[1])
   ytext2 <- ylims[1] + 0.7 * (ylims[2]-ylims[1])
   xtext <- ylims[1] + 0.2 * (xlims[2]-xlims[1])
-  
-  
+
+
   #i <-  4
   cols = rep("green", 11)
   cols[input$i] <- "red"
@@ -32,7 +31,7 @@ eval(parse(text = paste("data.df <- data.frame(x=anscombe$x", whichpair, "[sorti
   pchs[input$i] <- 4
   par(bty = "n", xpd = NA, las = 1)
   plot(data.df$y~data.df$x, pch = pchs, col = cols, ylim = ylims, xlab = "x", ylab = "y", main = "Illustration of \n leave one out residuals", xlim = xlims)
-  
+
   text(data.df$x, rep(4,11), round(studres(lm(data.df$y~data.df$x)),2), cex = 0.4)
   m1 <- lm(data.df$y[-input$i] ~ data.df$x[-input$i])
   sigma2 <- summary(m1)$sigma^2
