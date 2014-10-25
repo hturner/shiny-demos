@@ -1,12 +1,7 @@
 ## load packages
 library(RColorBrewer) #brewer.pal
 library(scales) # dichromat_pal
-library(R.utils) # sourceDirectory
-library(fields) # image.plot
-library(plot3D) # persp3D
-
-## source app-specific functions
-sourceDirectory('../tools', recursive = TRUE, modifiedOnly = FALSE)
+library(shinytools)
 
 ## plot colours
 abCol <- "black"
@@ -19,19 +14,28 @@ shinyServer(function(input, output, session){
     ## get data
     dat <- reactive({na.omit(
         switch(input$data,
+               "aids" = data.frame( ## Dobson 1990
+                   y = c(0:3, 1, 4, 9, 18, 23, 31, 20, 25, 37, 45),
+                   x = 1:14),
                "cars" = cars[c("dist", "speed")]))})
     ## get model parameters
     fit <- reactive({
         dat <- dat()
         y <- names(dat)[1]
         x <- names(dat)[2]
-        par <- glm.fit(model.matrix(~dat[[x]]), dat[[y]],
-                       family = poisson())$coefficients
-        a <- round(par[[1]], 3)
-        b <- round(par[[2]], 3)
+        family <- get(input$family)(link = input$link)
+        mod <- tryCatch(glm.fit(model.matrix(~dat[[x]]), dat[[y]],
+                                family = family, start = c(0, 0.5)),
+                        warning = function(w) w)
+        if (inherits(mod, "warning")) stop("Could not fit model", call. = FALSE)
+        a <- round(coef(mod)[[1]], 3)
+        b <- round(coef(mod)[[2]], 3)
         n <- nrow(dat)
+        if (input$family == "gaussian") {
+            sigma <- sqrt(sum((mod$weights * mod$residuals^2))/mod$df.residual)
+        } else sigma <- NULL
         eqn <- bquote(log(E(.(y))) == .(a) + .(b) %.% .(x))
-        list(a = a, b = b, eqn = eqn)
+        list(a = a, b = b, sigma = sigma, eqn = eqn, family = family)
     })
     ## define range of parameters reactively
     step <- reactive({
@@ -76,7 +80,7 @@ shinyServer(function(input, output, session){
         bigplot <- c(0.1211077, 0.7767385, 0.1836000, 0.8524000)
         par(plt = bigplot)
         plot(dat[[x]], dat[[y]], ylab = y, xlab = x)
-        f <- function(x) exp(input$a + input$b*x)
+        f <- function(x) fit$family$linkinv(input$a + input$b*x)
         lim <- par()$usr
         if (!is.null(input$a)) # not evaluated at start-up
             curve(f, lim[1], lim[2], col = inputCol, add = TRUE)
@@ -84,49 +88,36 @@ shinyServer(function(input, output, session){
               side = 3, line = 3, col = inputCol)
         ## plus regression line if requested
         if (input$fitted) {
-            f <- function(x) exp(fit$a + fit$b*x)
+            f <- function(x) fit$family$linkinv(fit$a + fit$b*x)
             curve(f, lim[1], lim[2], col = abCol, add = TRUE)
             mtext(fit$eqn, side = 3, line = 1, col = abCol)
         }
         ## plus residuals if requested
         if (input$residuals) {
-            mu <- exp(input$a + input$b * dat[[x]])
+            mu <- fit$family$linkinv(input$a + input$b * dat[[x]])
             res <- dat[[y]] - mu
-            if (input$type %in% c("pearson", "pearson2")){
-                v <- 1/sqrt(poisson()$variance(mu))
+            signRes <- sign(res)
+            if (input$type == "pearson"){
+                res <- res/sqrt(fit$family$variance(mu))
             } else {
                 wt <- rep.int(1, length(y))
-                d <- sqrt(pmax((poisson()$dev.resids)(dat[[y]], mu, wt), 0))
-                v <- sign(res) * d/res
+                d <- sqrt(pmax((fit$family$dev.resids)(dat[[y]], mu, wt), 0))
+                res <- signRes * d
             }
-            ## convert v to colour (rescale to fill 0-1 range)
-            v <- (v-min(v))/(max(v) - min(v))
-            col <- colorRamp(brewer.pal(9, "PuRd"))(v)
-            col <- rgb(col, maxColorValue = 255)
-            if (input$type %in% c("pearson", "dev")) {
-                segments(x0 = dat[[x]], y0 = dat[[y]], x1 = dat[[x]], y1 = mu,
-                         col = col, lty = ifelse(sign(res) == 1, 1, 3), lwd = 3)
-            } else {
-                segments(x0 = c(dat[[x]], dat[[x]],
-                             dat[[x]] - res, dat[[x]] - res),
-                         y0 = c(dat[[y]], mu, mu, dat[[y]]),
-                         x1 = c(dat[[x]], dat[[x]] - res,
-                             dat[[x]] - res, dat[[x]]),
-                         y1 = c(mu, mu, dat[[y]], dat[[y]]),
-                         col = col, lty = ifelse(sign(res) == 1, 1, 3), lwd = 3)
-            }
-            image.plot(zlim = c(0, 1), col = rev(col), legend.only = TRUE,
-                       legend.width = 1, smallplot= c(.80,.85,0.25,0.8),
-                       legend.lab = "relative weight", legend.line = 2.5)
+            radius <- sqrt(abs(res)/pi)
+            symbols(dat[[x]], dat[[y]], circles = radius, inches = 0.3,
+                    fg = "white",
+                    bg = c(rgb(1,0,0,0.5), rgb(0,0,1,0.5))[signRes/2 + 1.5],
+                    add = TRUE)
         }
         ## plot deviance function
         dev <- function(par, y, x) {
             wt <- rep.int(1, length(y))
-            mu <- exp(par[1] + par[2] * x)
-            sum(poisson()$dev.resids(y, mu, wt))
+            mu <- fit$family$linkinv(par[1] + par[2] * x)
+            sum(fit$family$dev.resids(y, mu, wt))
         }
         par(plt = old.par$plt)
-        plotLoss(input$loss, dev,
+        plotLoss(dev,
                  seq(step$aMin - step$aStep, step$aMax + step$aStep,
                      length = 100),
                  seq(step$bMin - step$bStep, step$bMax + step$bStep,
@@ -154,7 +145,7 @@ shinyServer(function(input, output, session){
             xlim <- getLim(dat[[x]]) # par()$usr no good for 3D
             ylim <- getLim(dat[[y]])
             x2D <- seq(xlim[1], xlim[2], length.out = 30)
-            y2D <- exp(fit$a + fit$b * x2D)
+            y2D <- fit$family$linkinv(fit$a + fit$b * x2D)
         }
         if (!input$density3D) {
             ## set up 2D plot
@@ -163,13 +154,17 @@ shinyServer(function(input, output, session){
             ## add 2D density if requested
             if (input$density2D) {
                 perc <- as.numeric(gsub("%", "", input$limits))
-                densStripPois(fit = fit, perc = perc, xlim = xlim, ylim = ylim,
-                              col = densCol[1])
+                if (input$family == "gaussian") {
+                    denStrip(x2D, y2D, fit$sigma, perc = perc, col = densCol[1])
+                } else {
+                    densStripPois(fit = fit, perc = perc, xlim = xlim,
+                                  ylim = ylim, col = densCol[1])
+                }
                 box()
             }
             ## add points and fitted line
             points(dat[[x]], dat[[y]])
-            f <- function(x) exp(fit$a + fit$b*x)
+            f <- function(x) fit$family$linkinv(fit$a + fit$b*x)
             lim <- par()$usr
             curve(f, lim[1], lim[2], col = abCol, add = TRUE)
             ## add title
@@ -178,8 +173,13 @@ shinyServer(function(input, output, session){
             ## find maximum density
             miny <- min(y2D)
             if (miny < ylim[1]) miny <- ylim[1]
-            zmax <- dpois(floor(miny), miny)
-            zlim <- c(0, zmax) # don't expand z range
+            if (input$family == "gaussian") {
+                zmax <- dnorm(y2D[1], y2D[1], fit$sigma)
+                zlim <- c(0, zmax*1.1)
+            } else {
+                zmax <- dpois(floor(miny), miny)
+                zlim <- c(0, zmax) # don't expand z range
+            }
             ## set up 3D plot
             par(mar = c(0, 2, 0, 0), xpd = TRUE, plt = c(0, 1, 0, 1))
             P <- persp3D(xlim, ylim, matrix(0, 2, 2), zlim = zlim,
@@ -189,19 +189,24 @@ shinyServer(function(input, output, session){
             ## add 2D density if requested
             if (input$density2D) {
                 perc <- as.numeric(gsub("%", "", input$limits))
-                densStripPois(fit = fit, perc = perc, persp = P,
-                              xlim = xlim, ylim = ylim, col = densCol[1])
+                if (input$family == "gaussian") {
+                    denStrip(x2D, y2D, fit$sigma, perc = perc, col = densCol[1],
+                         persp = P, xlim = xlim, ylim = ylim)
+                } else {
+                    densStripPois(fit = fit, perc = perc, persp = P,
+                                  xlim = xlim, ylim = ylim, col = densCol[1])
+                }
             }
             base3D(xlim, ylim, zlim, P)
             ## add points and fitted line
             points(trans3d(dat[[x]], dat[[y]], 0, P))
             if (any(too.high <- y2D > ylim[2])) {
                 y2D[too.high] <- ylim[2]
-                x2D[too.high] <- (ylim[2] - fit$a)/fit$b
+                x2D[too.high] <- (fit$family$linkfun(ylim[2]) - fit$a)/fit$b
             }
             if (any(too.low <- y2D < ylim[1])) {
                 y2D[too.low] <- ylim[1]
-                x2D[too.low] <- (ylim[1] - fit$a)/fit$b
+                x2D[too.low] <- (fit$family$linkfun(ylim[1]) - fit$a)/fit$b
             }
             lines(trans3d(x2D, y2D, 0, P))
             ## add 3D densities if requested
@@ -211,11 +216,16 @@ shinyServer(function(input, output, session){
                 perspLab(P, xlim, ylim, zlim, zlab = "Fitted Density")
                 q <- seq(1/(nq + 1), nq/(nq + 1), length.out = nq)
                 x3D <- xlim[1] + q * diff(range(xlim))
-                y3D <- exp(fit$a + fit$b * x3D)
+                y3D <- fit$family$linkinv(fit$a + fit$b * x3D)
                 perc <- as.numeric(gsub("%", "", input$limits))
                 for (i in seq_len(nq)) {
-                    addDenPois(x3D[i], y3D[i], ylim, P, perc = perc,
-                              incol = densCol[2], outcol = densCol[3])
+                    if (input$family == "gaussian") {
+                        addDen(x3D[i], y3D[i], fit$sigma, ylim, P, perc = perc,
+                           incol = densCol[2], outcol = densCol[3])
+                    } else {
+                        addDenPois(x3D[i], y3D[i], ylim, P, perc = perc,
+                                   incol = densCol[2], outcol = densCol[3])
+                    }
                 }
             }
             text(trans3d(xlim[1] + diff(xlim)/2, ylim[1] + diff(ylim)/2,

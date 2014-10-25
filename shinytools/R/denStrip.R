@@ -1,17 +1,24 @@
 ## Similar idea to denstrip::denstrip, but allows density to change over strip.
-## Adds density based interval around E(y) to existing plot of y vs x.
-## Density built up by layering npoly polygons.
-denStrip <- function(x, # x values (min 3 to enable clipping)
-                     yhat, # fitted values, i.e. E(y)
-                     sigma, # standard deviation of density (may vary with x)
-                     npoly = 50, #  number of polygons
-                     perc = 95, # middle percentage of density shown, in [0, 100]
-                     persp = NULL, # the output from persp to transform to 3D
-                     xlim = NULL, # limits to clip to in 3D case
-                     ylim = NULL, # ditto for y
-                     col = "red"
-                     ) {
-    require(scales) # for alpha function
+
+##' Adds a normal density strip around E(y) to existing 2D or 3D plot of y vs x.
+##'
+##' Density built up by layering \code{npoly} polygons.
+##' @title Add Normal Density Strip
+##' @param x x values (minimum 3 to enable clipping).
+##' @param yhat fitted values, i.e. E(y).
+##' @param sigma standard deviation of density.
+##' @param npoly number of polygons.
+##' @param perc middle percentage of density shown.
+##' @param persp the output from \code{persp} to transform to 3D.
+##' @param xlim x limits to clip to in 3D case.
+##' @param ylim y limits to clip to in 3D case.
+##' @param col colour of the density polygons.
+##' @author Heather Turner
+##' @export
+##' @importFrom scales alpha
+denStrip <- function(x, yhat, sigma, npoly = 50, perc = 95,
+                     persp = NULL, xlim = NULL, ylim = NULL,
+                     col = "red") {
     alpha <- (100 - perc)/200
     lwr <- exp(seq(log(alpha), log(0.5), length.out = npoly + 1))
     ## draw polygon from lwr[i]'th to (1 - lwr[i])'th quantile

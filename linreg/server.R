@@ -1,13 +1,9 @@
 ## load packages
 library(RColorBrewer) #brewer.pal
 library(scales) # dichromat_pal
-library(R.utils) # sourceDirectory
-library(fields) #image.plot
 library(ISwR) #thuesen
 library(MASS) #cats
-
-## source app-specific functions
-sourceDirectory('../tools', recursive = TRUE, modifiedOnly = FALSE)
+library(shinytools)
 
 ## plot colours
 abCol <- "black"
@@ -30,8 +26,9 @@ shinyServer(function(input, output, session){
                "thuesen" = thuesen[c("short.velocity", "blood.glucose")]))})
     ## get regression parameters
     lossFn <- reactive({
-        if (input$loss == "absolute") absoluteLoss
-        else quadraticLoss
+        if (input$loss == "absolute") {
+            function(par, y, x) sum(abs(y - par[1] - par[2] * x))
+        } else function(par, y, x) sum((y - par[1] - par[2] * x)^2)
     })
     fit <- reactive({
         dat <- dat()
@@ -111,7 +108,7 @@ shinyServer(function(input, output, session){
                      y1 = c(yhat, yhat, dat[[y]], dat[[y]]),
                      col = resCol[sign(res)*0.5 + 1.5])
         }
-        plotLoss(input$loss, lossFn,
+        plotLoss(lossFn,
                  seq(step$aMin - step$aStep, step$aMax + step$aStep,
                      length = 100),
                  seq(step$bMin - step$bStep, step$bMax + step$bStep,

@@ -5,9 +5,18 @@ shinyUI(pageWithSidebar(
     ## use Chrome to see up/down arrows on numeric input boxes
     sidebarPanel(width = 3, # out of 12 units
                  selectInput("data",
-                              "Data set",
-                              list("cars")),
-                 br(), br(),
+                             "Data set",
+                             list("aids", "cars")),
+                 selectInput("family",
+                             "Family",
+                             list("gaussian",
+                                  "poisson"),
+                             selected = "poisson"),
+                 selectInput("link",
+                             "Link function",
+                             list("identity",
+                                  "log"),
+                             selected = "log"),
                  ## tab 1 inputs
                  conditionalPanel(
                     condition = "input.tab == 'tab1'",
@@ -22,9 +31,7 @@ shinyUI(pageWithSidebar(
                      radioButtons("type",
                                   "Residual type",
                                   list("Pearson residuals" = "pearson",
-                                       "Squared Pearson residuals" = "pearson2",
-                                       "Deviance residuals" = "dev",
-                                       "Squared deviance residuals" = "dev2")),
+                                       "Deviance residuals" = "dev")),
                      br()),
                  ## tab 2 inputs
                  conditionalPanel(

@@ -1,6 +1,19 @@
-## use log color scale to "zoom" into minimum
-## (means that limits are less critical)
-plotLoss <- function(type, loss, a, b, y, x){
+##' Plot the loss function for a regression model with a single explanatory
+##' variable.
+##'
+##' The loss function is evaluated over a grid of values for the intercept
+##' and the slope. A log colour scale is used to "zoom" into minimum.
+##' @title Plot Loss Function
+##' @param loss a function that returns the loss, with arguments \code{par}, a vector of intercept and slope, \code{y}, the reponse vector, and \code{x} the explanatory variable.
+##' @param a sequence of values for intercept.
+##' @param b sequence of values for slope.
+##' @param y response vector.
+##' @param x explanatory variable.
+##' @author Heather Turner
+##' @export
+##' @importFrom fields image.plot
+##' @importFrom scales dichromat_pal
+plotLoss <- function(loss, a, b, y, x){
     gr <- expand.grid(a = a, b = b)
     l <- apply(gr, 1, loss, y, x)
     l <- matrix(l, length(a), length(b))

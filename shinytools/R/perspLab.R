@@ -1,4 +1,18 @@
-## based on http://rwiki.sciviews.org/doku.php?id=tips:graphics-3d:zlabspace
+##' Add axis labels to persp plot.
+##'
+##'
+##' @title Add Axis Labels to persp Plot
+##' @param persp the output from \code{persp} to transform to 3D.
+##' @param xlim x limits.
+##' @param ylim y limits.
+##' @param zlim z limits.
+##' @param xlab label for x axis.
+##' @param ylab label for y axis.
+##' @param zlab label for z axis.
+##' @param ... further arguments passed to \code{text}.
+##' @references  Based on \url{http://rwiki.sciviews.org/doku.php?id=tips:graphics-3d:zlabspace}.
+##' @author Heather Turner
+##' @export
 perspLab <- function(persp,
                      xlim = NULL,
                      ylim = NULL,

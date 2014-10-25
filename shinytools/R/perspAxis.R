@@ -1,8 +1,14 @@
-## add axes to persp plot
-getTicks <- function(lim) {
-    ticks <- pretty(lim)
-    ticks[ticks >= lim[1] & ticks <= lim[2]]
-}
+##' Add axes to persp plot.
+##'
+##'
+##' @title Add Axes to persp Plot
+##' @param axis vector specifying one or more axes to add.
+##' @param persp the output from \code{persp} to transform to 3D.
+##' @param xlim x limits.
+##' @param ylim y limits.
+##' @param zlim z limits.
+##' @author Heather Turner
+##' @export
 perspAxis <- function(axis = 1:3, #1 = x, 2 = y, 3 = z
                       persp, xlim, ylim, zlim){
     if (1 %in% axis) {
@@ -33,4 +39,9 @@ perspAxis <- function(axis = 1:3, #1 = x, 2 = y, 3 = z
         xy2 <- trans3d(xlim[1]- 2*len, ylim[2], ticks, persp)
         text(xy2$x, xy2$y, labels = ticks, adj = c(1, 0.5))
     }
+}
+
+getTicks <- function(lim) {
+    ticks <- pretty(lim)
+    ticks[ticks >= lim[1] & ticks <= lim[2]]
 }
