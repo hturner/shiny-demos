@@ -69,67 +69,67 @@ style="height:300px;">
 ---
 
 <div style = "margin-left: -50px; margin-right: -50px">
-![linreg app](linreg-data.png)
+ <img src="linreg-data.png" alt="linreg app - data" style="width: 100%;max-height: 100%" />
 </div>
 
 ---
 
 <div style = "margin-left: -50px; margin-right: -50px">
-![linreg app](linreg-param.png)
+ <img src="linreg-param.png" alt="linreg app - parameters" style="width: 100%;max-height: 100%" />
 </div>
 
 ---
 
 <div style = "margin-left: -50px; margin-right: -50px">
-![linreg app](linreg-opts.png)
+ <img src="linreg-opts.png" alt="linreg app - options" style="width: 100%;max-height: 100%" />
 </div>
 
 ---
 
 <div style = "margin-left: -50px; margin-right: -50px">
-![linreg app](linreg-loss.png)
+ <img src="linreg-loss.png" alt="linreg app - loss" style="width: 100%;max-height: 100%" />
 </div>
 
 ---
 
 <div style = "margin-left: -50px; margin-right: -50px">
-![linreg app](linreg-plots.png)
+ <img src="linreg-plots.png" alt="linreg app - plot features" style="width: 100%;max-height: 100%" />
 </div>
 
 ---
 
 <div style = "margin-left: -50px; margin-right: -50px">
-![linreg app](linreg-plots2.png)
+ <img src="linreg-plots2.png" alt="linreg app - plots features2" style="width: 100%;max-height: 100%" />
 </div>
 
 ---
 
 <div style = "margin-left: -50px; margin-right: -50px">
-![linreg app](linreg-scale.png)
+ <img src="linreg-scale.png" alt="linreg app - plot scale" style="width: 100%;max-height: 100%" />
 </div>
 
 ---
 
 <div style = "margin-left: -50px; margin-right: -50px">
-![linreg app](linreg2-D.png)
+ <img src="linreg2-D.png" alt="linreg app - densities" style="width: 100%;max-height: 100%" />
 </div>
 
 ---
 
 <div style = "margin-left: -50px; margin-right: -50px">
-![linreg app](linreg2-lim.png)
+ <img src="linreg2-lim.png" alt="linreg app - limits" style="width: 100%;max-height: 100%" />
 </div>
 
 ---
 
 <div style = "margin-left: -50px; margin-right: -50px">
-![linreg app](linreg2-clip.png)
+ <img src="linreg2-clip.png" alt="linreg app - clipping" style="width: 100%;max-height: 100%" />
 </div>
 
 ---
 
 <div style = "margin-left: -50px; margin-right: -50px">
-![linreg app](linreg2-axes.png)
+ <img src="linreg2-axes.png" alt="linreg app - axes" style="width: 100%;max-height: 100%" />
 </div>
 
 ---
@@ -139,7 +139,7 @@ style="height:300px;">
 shinyAppDir(
   "linreg",
   options=list(
-     width="100%", height=600
+     height="800px"
   )
 )
 ```
@@ -152,7 +152,7 @@ shinyAppDir(
 
 ```{r, echo = FALSE}
 inputPanel(
-    radioButtons("npoly", "Number of polygons:", 
+    radioButtons("npoly", "No. polygons:", 
                  choices = list("3" = "three", "50" = "fifty"), selected = "three", 
                  inline = TRUE),
     uiOutput("display")
@@ -160,9 +160,9 @@ inputPanel(
 
 output$display <- renderUI({
     m <- switch(input$npoly, "three" = 3, "fifty" = 50)
-    sliderInput("nshow", "Number of polygons to show:", 
-                min = 0, max = m, value = 0, 
-                animate = TRUE)
+    sliderInput("nshow", "No. polygons to show:", 
+                min = 0, max = m, value = 0, step = ifelse(m == 3, 1, 10),
+                width = "50%", animate = TRUE)
     })
 
 div(align = "center",

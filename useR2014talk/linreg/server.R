@@ -1,19 +1,272 @@
 ## load packages
 library(RColorBrewer) #brewer.pal
 library(scales) # dichromat_pal
-library(R.utils) # sourceDirectory
-library(fields) #image.plot
 library(ISwR) #thuesen
 library(MASS) #cats
-
-## source app-specific functions
-sourceDirectory('../tools', recursive = TRUE, modifiedOnly = FALSE)
 
 ## plot colours
 abCol <- "black"
 inputCol <- brewer.pal(8, "Dark2")[2]
 resCol <- brewer.pal(4, "RdYlBu")[c(1,4)]
 densCol <- dichromat_pal("BluetoOrangeRed.14")(14)[c(1, 12, 14)]
+
+## add all code explicitly
+addDen <- function(x, mu, sigma, ylim, persp, n = 50,
+                   perc = 95, incol = "light blue", outcol = "blue",
+                   density = 40){
+    ## sequence along ylim
+    y <- seq(ylim[1], ylim[2], length = n)
+    ## add in percentage points
+    q <- c((100 - perc), (100 + perc))/200
+    q <- qnorm(q, mu, sigma)
+    q[1] <- max(q[1], min(y))
+    q[2] <- min(q[2], max(y))
+    y <- sort(c(y, q))
+    ## density
+    z <- dnorm(y, mu, sigma)
+    z0 <- numeric(length(y))
+    ## density slices - color by whether in/out middle perc%
+    break1 <- which(y == q[1])[1]
+    break2 <- which(y == q[2])[1]
+    set <- list(1:break1, break1:break2, break2:length(y))
+    for (i in 1:3) {
+        coord <- trans3d(x,
+                         c(y[set[[i]]], rev(y[set[[i]]])),
+                         c(z[set[[i]]], z0[set[[i]]]), persp)
+        col <- alpha(ifelse(i == 2, incol, outcol), 0.5)
+        polygon(coord, border = col, col = col)
+    }
+}
+
+base3D <- function(xlim, ylim, zlim, P){
+    lines(trans3d(xlim[1], ylim, zlim[1], P))
+    lines(trans3d(xlim[2], ylim, zlim[1], P))
+    lines(trans3d(xlim, ylim[1], zlim[1], P))
+    lines(trans3d(xlim, ylim[2], zlim[1], P))
+}
+
+denStrip <- function(x, yhat, sigma, npoly = 50, perc = 95,
+                     persp = NULL, xlim = NULL, ylim = NULL,
+                     col = "red") {
+    alpha <- (100 - perc)/200
+    lwr <- exp(seq(log(alpha), log(0.5), length.out = npoly + 1))
+    ## draw polygon from lwr[i]'th to (1 - lwr[i])'th quantile
+    ## with alpha density given by density at (lwr[i] + lwr[i + 1])/2
+    hlast <- 0
+    for (i in seq_len(npoly)) {
+        q <- c(lwr = lwr[i], upr = 1 - lwr[i], mid = mean(lwr[i:(i + 1)]))
+        q <- sapply(q, qnorm, yhat, sigma)
+        ## standardise so max density = 1
+        ## !! probably need to change for heteroscedastic case !!
+        h <- dnorm(q[, "mid"], yhat, sigma)/dnorm(yhat, yhat, sigma)
+        ## composite alpha will be h^p
+        p <- 1
+        a <- (h^p - hlast^p)/(1 - hlast^p)
+        coord <- list(x = c(x, rev(x)), y = c(q[, "lwr"], rev(q[, "upr"])))
+        ## clip to plotting region (only really needed for 3D case)
+        if (!is.null(ylim)) {
+            too.low <- which(coord$y < ylim[1])
+            if (length(too.low)) {
+                ## shift last or next point to corner
+                id <- max(too.low) + 1 * (length(too.low) == 1)
+                coord$x[id] <- with(coord, x[id - 1] + (ylim[1] - y[id - 1]) *
+                                        (x[id] - x[id - 1])/(y[id] - y[id - 1]))
+                if (coord$x[id] > xlim[2]) coord$x[id] <- xlim[2]
+                coord$y[c(too.low, id)] <- ylim[1]
+            }
+            too.high <- which(coord$y > ylim[2])
+            if (length(too.high)) {
+                ## shift last or next point to corner
+                id <- max(too.high) + 1 * (length(too.high) == 1)
+                coord$x[id] <- with(coord, x[id] + (ylim[2] - y[id]) *
+                                        (x[id - 1] - x[id])/(y[id - 1] - y[id]))
+                if (coord$x[id] < xlim[1]) coord$x[id] <- xlim[1]
+                coord$y[c(too.high, id)] <- ylim[2]
+            }
+        }
+        ## transform 2D coords to 3D
+        if (!is.null(persp)) coord <- trans3d(coord$x, coord$y, 0, persp)
+        ## plot polygon and save current total density
+        polygon(coord$x, coord$y, border = NA, col = alpha(col, a))
+        hlast <- h
+    }
+}
+
+getLim <- function(x) {
+    xlim <- range(x)
+    xlim + c(-0.04, 0.04) * diff(xlim)
+}
+
+perspAxis <- function(axis = 1:3, #1 = x, 2 = y, 3 = z
+                      persp, xlim, ylim, zlim){
+    if (1 %in% axis) {
+        ticks <- getTicks(xlim)
+        len <- diff(ylim) * 0.03
+        xy0 <- trans3d(ticks, ylim[1], zlim[1], persp)
+        xy1 <- trans3d(ticks, ylim[1]- len, zlim[1], persp)
+        segments(xy0$x, xy0$y, xy1$x, xy1$y)
+        xy2 <- trans3d(ticks, ylim[1]- 2*len, zlim[1], persp)
+        text(xy2$x, xy2$y, labels = ticks, adj = c(0.5, 0.5))
+    }
+    if (2 %in% axis) {
+        ticks <- getTicks(ylim)
+        len <- diff(xlim) * 0.03
+        xy0 <- trans3d(xlim[1], ticks, zlim[1], persp)
+        xy1 <- trans3d(xlim[1] - len, ticks, zlim[1], persp)
+        segments(xy0$x, xy0$y, xy1$x, xy1$y)
+        xy2 <- trans3d(xlim[1]- 2*len, ticks, zlim[1], persp)
+        text(xy2$x, xy2$y, labels = ticks, adj = c(1, 0.5))
+    }
+    if (3 %in% axis) {
+        ticks <- getTicks(zlim)
+        len <- diff(xlim) * 0.03
+        xy0 <- trans3d(xlim[1], ylim[2], ticks, persp)
+        xy1 <- trans3d(xlim[1] - len, ylim[2], ticks, persp)
+        lines(xy0)
+        segments(xy0$x, xy0$y, xy1$x, xy1$y)
+        xy2 <- trans3d(xlim[1]- 2*len, ylim[2], ticks, persp)
+        text(xy2$x, xy2$y, labels = ticks, adj = c(1, 0.5))
+    }
+}
+
+getTicks <- function(lim) {
+    ticks <- pretty(lim)
+    ticks[ticks >= lim[1] & ticks <= lim[2]]
+}
+
+perspLab <- function(persp,
+                     xlim = NULL,
+                     ylim = NULL,
+                     zlim = NULL,
+                     xlab = NULL,
+                     ylab = NULL,
+                     zlab = NULL,
+                     ...){
+    
+    if (is.null(xlim) | is.null(ylim) | is.null(zlim))
+        stop("xlim, ylim and zlim must all be specified")
+    
+    if (!is.null(xlab)){
+        len <- diff(ylim) * 0.03
+        ## go out 3 * len
+        start <- trans3d(xlim[1], ylim[1], zlim[1], persp)
+        end <- trans3d(xlim[1], ylim[1] - 3*len, zlim[1], persp)
+        ## find angle of projection
+        phi <- atan2(start$y - end$y, start$x - end$x)
+        ## keep going enough to cover height of highest x label
+        ticks <- getTicks(xlim)
+        h <- max(sapply(ticks, "strheight"))
+        w <- h/tan(phi)
+        ## same at top
+        start2 <- trans3d(xlim[2], ylim[1], zlim[1], persp)
+        end2 <- trans3d(xlim[2], ylim[1] - 3*len, zlim[1], persp)
+        phi2 <- atan2(start2$y - end2$y, start2$x - end2$x)
+        w2 <- h/tan(phi2)
+        ## find mid-point between two end points
+        A <- (end2$y - h) - (end$y - h)
+        B <- (end2$x - w2) - (end$x - w)
+        ## and angle at distance half-way out
+        d <- sqrt((start$y - (end$y - h))^2 + (start$x - (end$x - w))^2)/2
+        x <- start$x - d * cos(phi)
+        y <- start$y - d * sin(phi)
+        d2 <- sqrt((start2$y - (end2$y - h))^2 + (start2$x - (end2$x - w2))^2)/2
+        x2 <- start2$x - d2 * cos(phi2)
+        y2 <- start2$y - d2 * sin(phi2)
+        ang <- 180/pi *  atan2(y - y2, x - x2)
+        if (abs(ang) > 100 & abs(ang) < 260) ang <- ang + 180
+        text(end$x - w + B/2, end$y - h + A/2, xlab, srt = ang, ...)
+    }
+    
+    ## instead of +1 work out unit along diff(lim)*0.03
+    if (!is.null(ylab)){
+        len <- diff(xlim) * 0.03
+        ## go out 3 * len
+        start <- trans3d(xlim[1], ylim[1], zlim[1], persp)
+        end <- trans3d(xlim[1] - 3*len, ylim[1], zlim[1], persp)
+        ## find angle of projection
+        phi <- atan2(start$y - end$y, start$x - end$x)
+        ## keep going enough to cover width of widest y label
+        ticks <- getTicks(ylim)
+        w <- max(sapply(ticks, "strwidth"))
+        h <- w * tan(phi)
+        ## same at top
+        start2 <- trans3d(xlim[1], ylim[2], zlim[1], persp)
+        end2 <- trans3d(xlim[1] - 3*len, ylim[2], zlim[1], persp)
+        phi2 <- atan2(start2$y - end2$y, start2$x - end2$x)
+        h2 <- w * tan(phi2)
+        ## find mid-point between two end points
+        A <- (end2$y - h2) - (end$y - h)
+        B <- (end2$x - w) - (end$x - w)
+        ## and angle at distance half-way out
+        d <- sqrt((start$y - (end$y - h))^2 + (start$x - (end$x - w))^2)/2
+        x <- start$x - d * cos(phi)
+        y <- start$y - d * sin(phi)
+        d2 <- sqrt((start2$y - (end2$y - h2))^2 + (start2$x - (end2$x - w))^2)/2
+        x2 <- start2$x - d2 * cos(phi2)
+        y2 <- start2$y - d2 * sin(phi2)
+        ang <- 180/pi *  atan2(y - y2, x - x2)
+        if (abs(ang) > 100 & abs(ang) < 260) ang <- ang + 180
+        text(end$x - w + B/2, end$y - h + A/2, ylab, srt = ang, ...)
+    }
+    
+    if (!is.null(zlab)){
+        len <- diff(xlim) * 0.03
+        ## go out 3 * len (to test)
+        start <- trans3d(xlim[1], ylim[2], zlim[1], persp)
+        end <- trans3d(xlim[1] - 3*len, ylim[2], zlim[1], persp)
+        ## find angle of projection
+        phi <- atan2(start$y - end$y, start$x - end$x)
+        ## keep going enough to cover width of widest z label
+        ticks <- getTicks(zlim)
+        w <- max(sapply(ticks, "strwidth"))
+        h <- w * tan(phi)
+        ## same at top
+        start2 <- trans3d(xlim[1], ylim[2], zlim[2], persp)
+        end2 <- trans3d(xlim[1] - 3*len, ylim[2], zlim[2], persp)
+        phi2 <- atan2(start2$y - end2$y, start2$x - end2$x)
+        h2 <- w * tan(phi2)
+        ## find mid-point between two end points
+        A <- (end2$y - h2) - (end$y - h)
+        B <- (end2$x - w) - (end$x - w)
+        ## and angle at distance half-way out
+        d <- sqrt((start$y - (end$y - h))^2 + (start$x - (end$x - w))^2)/2
+        x <- start$x - d * cos(phi)
+        y <- start$y - d * sin(phi)
+        d2 <- sqrt((start2$y - (end2$y - h2))^2 + (start2$x - (end2$x - w))^2)/2
+        x2 <- start2$x - d2 * cos(phi2)
+        y2 <- start2$y - d2 * sin(phi2)
+        ang <- 180/pi *  atan2(y - y2, x - x2)
+        if (abs(ang) > 100 & abs(ang) < 260) ang <- ang + 180
+        text(end$x - w + B/2, end$y - h + A/2, zlab, srt = ang, adj = c(0.5, 1),
+             ...)
+    }
+}
+
+plotLoss <- function(loss, a, b, y, x){
+    gr <- expand.grid(a = a, b = b)
+    l <- apply(gr, 1, loss, y, x)
+    l <- matrix(l, length(a), length(b))
+    maxLog2 <- function(x, n = 0){
+        out <- suppressWarnings(log2(x))
+        if (is.finite(out)){
+            n <- n + 1
+            Recall(out, n)
+        } else n
+    }
+    nLog2 <- function(x, n = 1){
+        out <- suppressWarnings(log2(x))
+        n <- n - 1
+        if (n > 0) Recall(out, n)
+        else out
+    }
+    ticks <- signif(round(quantile(l, c(0.2, 0.4, 0.6, 0.8))), 2)
+    n <- pmin(maxLog2(min(l)), 3)
+    require(fields)
+    image.plot(a, b, nLog2(l, n),
+               col = rev(dichromat_pal("BrowntoBlue.12")(12)),
+               axis.args = list(at = nLog2(ticks, n), labels=ticks),
+               smallplot= c(.84,.89,0.2,0.8))
+}
 
 ## server script for linear regression app
 shinyServer(function(input, output, session){
@@ -30,8 +283,9 @@ shinyServer(function(input, output, session){
                "thuesen" = thuesen[c("short.velocity", "blood.glucose")]))})
     ## get regression parameters
     lossFn <- reactive({
-        if (input$loss == "absolute") absoluteLoss
-        else quadraticLoss
+        if (input$loss == "absolute") {
+            function(par, y, x) sum(abs(y - par[1] - par[2] * x))
+        } else function(par, y, x) sum((y - par[1] - par[2] * x)^2)
     })
     fit <- reactive({
         dat <- dat()
@@ -111,7 +365,7 @@ shinyServer(function(input, output, session){
                      y1 = c(yhat, yhat, dat[[y]], dat[[y]]),
                      col = resCol[sign(res)*0.5 + 1.5])
         }
-        plotLoss(input$loss, lossFn,
+        plotLoss(lossFn,
                  seq(step$aMin - step$aStep, step$aMax + step$aStep,
                      length = 100),
                  seq(step$bMin - step$bStep, step$bMax + step$bStep,
