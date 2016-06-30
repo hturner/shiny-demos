@@ -2,6 +2,7 @@
 library(RColorBrewer) #brewer.pal
 library(scales) # dichromat_pal
 library(shinytools)
+library(plot3D)
 
 ## plot colours
 abCol <- "black"
@@ -182,8 +183,7 @@ shinyServer(function(input, output, session){
             }
             ## set up 3D plot
             par(mar = c(0, 2, 0, 0), xpd = TRUE, plt = c(0, 1, 0, 1))
-            P <- persp3D(xlim, ylim, matrix(0, 2, 2), zlim = zlim,
-                         theta = -30, phi = 15, box = FALSE, colkey = FALSE)
+            P <- persp3D(xlim, ylim, matrix(0, 2, 2), zlim = zlim, theta = -30, phi = 15, box = FALSE, colkey = FALSE)
             perspAxis(1:2, P, xlim, ylim, zlim)
             perspLab(P, xlim, ylim, zlim, xlab = x, ylab = y)
             ## add 2D density if requested
