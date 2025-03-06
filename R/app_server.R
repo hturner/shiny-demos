@@ -1,9 +1,17 @@
+#' The application server-side
+#'
+#' @param input,output,session Internal parameters for {shiny}.
+#'     DO NOT REMOVE.
+#' @import shiny
+#' @noRd
+app_server <- function(input, output, session) {
 ## load packages
 library(RColorBrewer) #brewer.pal
 library(scales) # dichromat_pal
 library(ISwR) #thuesen
 library(MASS) #cats
-library(shinytools)
+library(fields)
+
 
 ## plot colours
 abCol <- "black"
@@ -12,7 +20,7 @@ resCol <- brewer.pal(4, "RdYlBu")[c(1,4)]
 densCol <- dichromat_pal("BluetoOrangeRed.14")(14)[c(1, 12, 14)]
 
 ## server script for linear regression app
-shinyServer(function(input, output, session){
+##shinyServer(function(input, output, session){
     ## get data
     dat <- reactive({na.omit(
         switch(input$data,
@@ -209,4 +217,7 @@ shinyServer(function(input, output, session){
                          zlim[2], P), labels = fit$eqn)
         }
     })
-})
+#}
+#)
+
+}

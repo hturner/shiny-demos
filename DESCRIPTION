@@ -1,0 +1,23 @@
+Package: ModelVis
+Title: MODEL_VIS
+Version: 0.0.0.9000
+Authors@R: 
+    person("Paul", "Hewson", , "p.hewson2@exeter.ac.uk")
+Description: A tool for visualing model residuals. This is for both linear and generalised linear models. At the moment this is entirely based on work by Heather Turner in the main repo, I just wanted to get things to a state I could a little further development.
+License: GPL (>= 3)
+Imports: 
+    attempt,
+    config,
+    DT,
+    glue,
+    golem,
+    htmltools,
+    shiny
+Encoding: UTF-8
+LazyData: true
+RoxygenNote: 7.1.1
+Suggests: 
+    spelling,
+    testthat (>= 3.0.0)
+Config/testthat/edition: 3
+Language: en-US
